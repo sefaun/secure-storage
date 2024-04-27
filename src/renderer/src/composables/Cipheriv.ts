@@ -1,28 +1,42 @@
 import crypto from 'crypto';
 
-export function useCipheriv(cipherivSalt: string) {
+export function useCipheriv() {
   const algorithm: string = 'aes-192-cbc';
-  let key;
+  let key: Buffer | null = null;
 
-  function encrypt(password: string) {
-    key = crypto.scryptSync(cipherivSalt, 'salt', 24);
+  function encrypt(cipherivSalt: string, password: string): Promise<string> {
+    const salt = Buffer.from('salt', 'utf8');
 
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(algorithm, key, iv);
-    const encrypted = cipher.update(password, 'utf8', 'hex');
+    return new Promise((resolve, _reject) => {
+      crypto.pbkdf2(cipherivSalt, salt, 100000, 24, 'sha256', (err, derivedKey): void => {
+        if (err) {
+          throw err;
+        }
+        
+        key = derivedKey;
 
-    return encrypted + cipher.final('hex') + '|' + Buffer.from(iv).toString('hex');
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv(algorithm, key, iv);
+        const encrypted = cipher.update(password, 'utf8', 'hex');
+
+        return resolve(encrypted + cipher.final('hex') + '|' + iv.toString('hex'));
+      });
+    });
   }
 
-  function dencrypt(hashed_password: string): string | boolean {
+  function dencrypt(encryptedData: string): string | boolean {
     try {
-      const [encrypted, iv] = hashed_password.split('|');
-      if (!iv) {
+      const [encrypted, ivHex] = encryptedData.split('|');
+      if (!ivHex) {
         throw new Error('IV not found');
       }
 
-      key = crypto.scryptSync(cipherivSalt, 'salt', 24);
-      const decipher = crypto.createDecipheriv(algorithm, key, Buffer.from(iv, 'hex'));
+      const iv = Buffer.from(ivHex, 'hex');
+      if (!key) {
+        throw new Error('Key not derived');
+      }
+
+      const decipher = crypto.createDecipheriv(algorithm, key, iv);
 
       return decipher.update(encrypted, 'hex', 'utf8') + decipher.final('utf8');
     } catch (error) {

@@ -12,11 +12,7 @@
         <el-input v-model="allData.content" class="w-full" :rows="20" type="textarea" />
       </div>
       <div class="w-full flex justify-start mt-[20px]">
-        <el-popconfirm title="Bütün verileri kalıcı olarak silmek istediğine emin misin ?" confirm-button-text="Evet" cancel-button-text="Hayır" @confirm="confirmDatas()">
-          <template #reference>
-            <el-button type="danger" @click.left="deleteDatas()">Verileri Sil</el-button>
-          </template>
-        </el-popconfirm>
+        <el-button type="success" @click.left="saveData()">Kaydet</el-button>
       </div>
     </div>
   </div>
@@ -24,13 +20,14 @@
 
 <script setup lang="ts">
 import type { Ref } from 'vue'
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { cloneDeep } from 'lodash'
 import { storageData } from '@/state'
 import { useStorage } from '@/composables/Storage'
 import { useCipheriv } from '@/composables/Cipheriv'
 
-const { writeStorage } = useStorage()
+const { readStorage, writeStorage } = useStorage()
+const { encrypt, dencrypt } = useCipheriv()
 const privateKeyStatus: Ref<boolean> = ref(false)
 
 // watch(() => allData.privateKey, (_val: string) => {
@@ -39,17 +36,21 @@ const privateKeyStatus: Ref<boolean> = ref(false)
 
 const allData = ref(cloneDeep(storageData))
 
-function confirmDatas(): void {
-  const { encrypt } = useCipheriv(allData.value.privateKey)
+async function saveData(): Promise<void> {
   //Save Datas
   storageData.privateKey = allData.value.privateKey
   //Encrypt Content
-  storageData.content = encrypt(allData.value.content)
+  storageData.content = await encrypt(storageData.privateKey, allData.value.content)
 
-  writeStorage()
+  // writeStorage()
 }
 
-function deleteDatas(): void {
-  //Delete Datas
+function getData() {
+  const storage = readStorage(`../${import.meta.env.VITE_STORAGE_FILE_NAME}`)
+  console.log(storage)
 }
+
+onMounted(() => {
+  getData()
+})
 </script>
